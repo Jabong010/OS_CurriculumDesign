@@ -1,7 +1,5 @@
 /*
 * 简单实现cat命令
-* 1509寝W组
-* 2021/6/28
 */
 #include <stdio.h>
 #include <stdlib.h>
