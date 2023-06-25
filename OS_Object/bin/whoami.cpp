@@ -1,7 +1,5 @@
 /*
 * 简单实现whoami命令
-* 1509寝W组
-* 2021/6/27
 */
 #include<stdio.h>
 #include<unistd.h>
