@@ -3,7 +3,7 @@ CXX = g++
 CXXFLAGS = -w -std=c++11
 
 # 定义所有的源文件和目标文件
-SRCS = cal.cpp cat.cpp cp.cpp date.cpp file.cpp ls.cpp mkdir.cpp mv.cpp ps.cpp pwd.cpp rm.cpp rmdir.cpp touch.cpp whoami.cpp
+SRCS = cal.cpp cat.cpp cp.cpp date.cpp file.cpp ls.cpp mkdir.cpp mv.cpp ps.cpp pwd.cpp rm.cpp rmdir.cpp touch.cpp whoami.cpp vi.cpp top.cpp
 OBJS = $(SRCS:.cpp=.o)
 BINS = $(SRCS:.cpp=)
 

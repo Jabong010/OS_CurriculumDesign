@@ -1,57 +1,64 @@
 /*
-* 简单实现cp命令
+* cp命令的自定义实现
+* @author：谢小鹏、梁亮、徐璟逸
 */
-#include<stdio.h>
-#include<stdlib.h>
-#include<unistd.h>
-#include<fcntl.h>
- 
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
+
 #define BUFF_SIZE 4096
 #define COPY_MODE 0644
- 
-int main(int argc, char *argv[])
-{
-	int  in_fd, out_fd, n_chars;
-	char buf[BUFF_SIZE];
-	//参数过多
-	if(argc != 3)
-	{
-		fprintf(stdout, "参数错误\n");
-		return 0;
-	}
-	//打开原文件
-	if((in_fd = open(argv[1], O_RDONLY)) == -1)
-	{
-		fprintf(stdout, "打开文件失败\n");
-		return 0;
-	}
- 	//新建复制文件
-	if((out_fd = creat(argv[2], COPY_MODE)) == -1 )
-	{
-		fprintf(stdout, "创建文件失败\n");
-		return 0;
-	}
-	//复制文件内容
-	while((n_chars = read(in_fd, buf, BUFF_SIZE)) > 0 )
-	{
-		if(write(out_fd, buf, n_chars) != n_chars )
-		{
-			fprintf(stdout, "复制中出现错误\n");
-			return 0;
-		}
-	}
- 	//读取文件内容错误
-	if(n_chars == -1)
-	{
-		fprintf(stdout, "读取文件内容错误\n");
-		return 0;
-	}
-	//关闭文件
-	if(close(in_fd) == -1 || close(out_fd) == -1)
-	{
-		fprintf(stdout, "关闭文件出现错误\n");
-		return 0;
-	}
-	fprintf(stdout, "cp success\n");
-	return 0;
+
+int main(int argc, char *argv[]) {
+    int fd_in, fd_out, bytes;
+    char buf[BUFF_SIZE];
+    
+    if (argc != 3) {
+        fprintf(stderr, "参数数量错误\n");
+        return 1;  // 返回非零值表示错误
+    }
+    
+    // 打开原文件
+    fd_in = open(argv[1], O_RDONLY);
+    if (fd_in == -1) {
+        perror("打开文件失败");
+        return 1;
+    }
+    
+    // 新建复制文件
+    fd_out = creat(argv[2], COPY_MODE);
+    if (fd_out == -1) {
+        perror("创建文件失败");
+        close(fd_in);
+        return 1;
+    }
+    
+    // 复制文件内容
+    while ((bytes = read(fd_in, buf, BUFF_SIZE)) > 0) {
+        ssize_t bytes_written = write(fd_out, buf, bytes);
+        if (bytes_written == -1 || bytes_written != bytes) {
+            perror("复制中出现错误");
+            close(fd_in);
+            close(fd_out);
+            return 1;
+        }
+    }
+    
+    if (bytes == -1) {
+        perror("读取文件内容错误");
+        close(fd_in);
+        close(fd_out);
+        return 1;
+    }
+    
+    // 关闭文件
+    if (close(fd_in) == -1 || close(fd_out) == -1) {
+        perror("关闭文件出现错误");
+        return 1;
+    }
+    
+    printf("cp success\n");
+    return 0;
 }

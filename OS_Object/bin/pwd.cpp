@@ -1,5 +1,6 @@
 /*
-* 简单实现pwd命令
+* pwd命令的自定义实现
+* @author：谢小鹏、梁亮、徐璟逸
 */
 #include<stdio.h>
 #include<stdlib.h>
@@ -13,7 +14,7 @@ int main(int argc, char* argv[])
 	char *buffer = (char*)malloc(sizeof(char)*bufsize);
     	if (!buffer)
     	{
-       	printf("allocation error1\n");
+       	fprintf(stderr,"malloc内存分配发生错误\n");
        	exit(1);
     	}
     	while (1)
@@ -24,7 +25,7 @@ int main(int argc, char* argv[])
             		buffer = (char*)realloc(buffer, sizeof(char)*bufsize);
             		if (!buffer)
             		{
-                		printf("allocation error2\n");
+                		fprintf(stderr,"realloc内存分配发送错误\n");
                 		exit(1);
                 	}
         	}

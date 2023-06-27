@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <list>
-#include <sys/types.h>
+#include <syspes.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -105,7 +105,7 @@ int main()
 // 读取命令行输入
 bool readCMD(char* buf, int buf_len)
 {
-    printf("xxp's shell>");
+    printf("lb's shell>");
     fflush(stdout);
     memset(buf, 0, buf_len);
 

@@ -1,180 +1,178 @@
 /*
-* 简单实现ps命令
+* ps命令及ps axjf、ps aux的自定义实现
+* @author：谢小鹏、梁亮、徐璟逸
 */
-#include<stdio.h>
-#include<unistd.h>
-#include<sys/stat.h>
-#include<string.h>
-#include<stdlib.h>
-#include<sys/types.h>
-#include<dirent.h>
-#include<pwd.h>
- 
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <pwd.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
 #define MAX_LEN 20
 
-//信息结构体
-typedef struct ps_info
-{
-	char pname[MAX_LEN];
-	char user[MAX_LEN];
-	int  pid;
-	int  ppid;
-	char state;
-	struct ps_info *next;
-}mps;
+// 信息结构体
+typedef struct ps_info {
+    char pname[MAX_LEN];
+    char user[MAX_LEN];
+    int pid;
+    int ppid;
+    char state;
+    struct ps_info* next;
+} mps;
 
-//获取信息
+// 获取信息
 mps* trav_dir(char dir[]);
 
-//read
-int read_info(char d_name[],struct ps_info *p1);
+// 读取信息
+int read_info(char d_name[], struct ps_info* p1);
 
-//由进程uid得到进程的所有者user
-void uid_to_name(uid_t uid, struct ps_info *p1);
+// 根据进程uid获取进程的所有者user
+void uid_to_name(uid_t uid, struct ps_info* p1);
 
-//判断name是否合法
-int is_num(char *);
+// 判断name是否为纯数字
+int is_num(const char* name);
 
-//显示
-void print_ps(struct ps_info *head);
+// 显示
+void print_ps(struct ps_info* head);
 
-//exec
-void exec(int argc, char* argv[]);
+// 执行命令
+void execute_ps(int argc, char* argv[]);
 
-//main
-int main(int argc, char* argv[])
-{
-	if(argc == 1)
-	{
-		mps *head,*link;
-		head=trav_dir("/proc/");
-		if(head==NULL)
-			printf("traverse dir error\n");
-		print_ps(head);
-		while(head!=NULL)        //释放链表
-		{
-			link=head;
-			head=head->next;
-			free(link);
-		}
-	}
-	else
-	{
-		//exec
-		exec(argc, argv);
-	}
-	return 0;
+int main(int argc, char* argv[]) {
+    if (argc == 1) {
+        mps* head;
+        head = trav_dir("/proc/");
+        if (head == NULL) {
+            printf("traverse dir error\n");
+        } else {
+            print_ps(head);
+            mps* current = head;
+            while (current != NULL) {
+                mps* next = current->next;
+                free(current);
+                current = next;
+            }
+        }
+    } else {
+        execute_ps(argc, argv);
+    }
+    return 0;
 }
 
-//获取信息
-mps* trav_dir(char dir[])                         
-{
-	DIR	*dir_ptr;
-	mps *head,*p1,*p2;
-	struct dirent *direntp;
-	struct stat infobuf;
- 
-	if((dir_ptr=opendir(dir))==NULL)
-		fprintf(stderr,"dir error %s\n",dir);
-	else
-	{
-		head=p1=p2=(struct ps_info *)malloc(sizeof(struct ps_info));    //建立链表
-		while((direntp=readdir(dir_ptr)) != NULL)               //遍历/proc目录所有进程目录
-		{
-			if((is_num(direntp->d_name))==0)                   //判断目录名字是否为纯数字
-			{
-				if(p1==NULL)
-				{
-					printf("malloc error!\n");
-					exit(0);
-				}
- 
-				if(read_info(direntp->d_name,p1)!=0)         //获取进程信息
-				{
-					printf("read_info error\n");
-					exit(0);
-				}
-				p2->next=p1;                        //插入新节点
-				p2=p1;
-				p1=(struct ps_info *)malloc(sizeof(struct ps_info));
-			}
-		}
-	}
-	p2->next=NULL;
-	return head;
+mps* trav_dir(char dir[]) {
+    DIR* dir_ptr;
+    mps* head = NULL;
+    mps* tail = NULL;
+    struct dirent* direntp;
+    struct stat infobuf;
+
+    if ((dir_ptr = opendir(dir)) == NULL) {
+        fprintf(stderr, "dir error %s\n", dir);
+    } else {
+        while ((direntp = readdir(dir_ptr)) != NULL) {
+            if (is_num(direntp->d_name) == 0) {
+                mps* p1 = (struct ps_info*)malloc(sizeof(struct ps_info));
+                if (p1 == NULL) {
+                    printf("malloc error!\n");
+                    exit(0);
+                }
+                if (read_info(direntp->d_name, p1) != 0) {
+                    printf("read_info error\n");
+                    exit(0);
+                }
+                if (head == NULL) {
+                    head = p1;
+                    tail = p1;
+                } else {
+                    tail->next = p1;
+                    tail = p1;
+                }
+            }
+        }
+        closedir(dir_ptr);
+    }
+    if (tail != NULL) {
+        tail->next = NULL;
+    }
+    return head;
 }
 
-//read
-int read_info(char d_name[],struct ps_info *p1)
-{
-	FILE *fd;
-	char dir[20];
-	struct stat infobuf;
- 
-	sprintf(dir,"%s/%s","/proc/",d_name);
-	chdir("/proc");                        //切换至/proc目录，不然stat返回-1
-	if(stat(d_name,&infobuf)==-1)                     //get process USER
-		fprintf(stderr,"stat error %s\n",d_name);
-	else
-		//p1->user=uid_to_name(infobuf.st_uid);
-		uid_to_name(infobuf.st_uid, p1);
- 
-	chdir(dir);            	            //切换到/proc/pid目录
-	if((fd=fopen("stat","r")) == nullptr)
-	{
-		printf("open the file is error!\n");
-		exit(0);		
-	}
-	while(4==fscanf(fd,"%d %s %c %d\n",&(p1->pid),p1->pname,&(p1->state),&(p1->ppid)))     //读文件的前四个字段内容，并存放在相关的链表成员中
-	{
-		break;							          
-	}
-	fclose(fd);
-	return 0;
+int read_info(char d_name[], struct ps_info* p1) {
+    char dir[20];
+    struct stat infobuf;
+
+    sprintf(dir, "%s/%s", "/proc/", d_name);
+    chdir("/proc");
+    if (stat(d_name, &infobuf) == -1) {
+        fprintf(stderr, "stat error %s\n", d_name);
+    } else {
+        uid_to_name(infobuf.st_uid, p1);
+    }
+
+    chdir(dir);
+    FILE* fd = fopen("stat", "r");
+    if (fd == NULL) {
+        printf("open the file is error!\n");
+        exit(0);
+    }
+    if (fscanf(fd, "%d %s %c %d\n", &(p1->pid), p1->pname, &(p1->state), &(p1->ppid)) == 4) {
+        fclose(fd);
+        return 0;
+    } else {
+        fclose(fd);
+        return -1;
+    }
 }
 
-//由进程uid得到进程的所有者user
-void uid_to_name(uid_t uid, struct ps_info *p1)         
-{
-	struct passwd *pw_ptr;
-	static char numstr[10];
- 
-	if((pw_ptr = getpwuid(uid)) == NULL)
-	{
-		sprintf(numstr,"%d",uid);
-		strcpy(p1->user, numstr);
-	}
-	else
-		strcpy(p1->user, pw_ptr->pw_name);
+void uid_to_name(uid_t uid, struct ps_info* p1) {
+    struct passwd* pw_ptr;
+    static char numstr[10];
+
+    if ((pw_ptr = getpwuid(uid)) == NULL) {
+        sprintf(numstr, "%d", uid);
+        strcpy(p1->user, numstr);
+    } else {
+        strcpy(p1->user, pw_ptr->pw_name);
+    }
 }
 
-//判断name是否合法
-int is_num(char p_name[])
-{
-	int i,len;
-	len = strlen(p_name);
-	if(len == 0) 
-		return -1;
-	for(i = 0; i < len; i++)
-		if(p_name[i]<'0' || p_name[i]>'9')
-			return -1;
-	return 0;
+int is_num(const char* name) {
+    int i, len;
+    len = strlen(name);
+    if (len == 0) {
+        return -1;
+    }
+    for (i = 0; i < len; i++) {
+        if (name[i] < '0' || name[i] > '9') {
+            return -1;
+        }
+    }
+    return 0;
 }
 
-//显示
-void print_ps(struct ps_info *head)
-{
-	mps *list;
-	printf("USER\t\tPID\tPPID\tSTATE\tPNAME\n");
-	for(list=head;list!=NULL;list=list->next)
-	{
-		printf("%s\t\t%d\t%d\t%c\t%s\n",list->user,list->pid,list->ppid,list->state,list->pname);
-	}
+void print_ps(struct ps_info* head) {
+    printf("USER\t\tPID\tPPID\tSTATE\tPNAME\n");
+    for (struct ps_info* list = head; list != NULL; list = list->next) {
+        printf("%s\t\t%d\t%d\t%c\t%s\n", list->user, list->pid, list->ppid, list->state, list->pname);
+    }
 }
 
-//exec
-void exec(int argc, char* argv[])
-{
-	//系统调用
-	execvp(argv[0], argv);
+void execute_ps(int argc, char* argv[]) {
+    if (strcmp(argv[1], "axjf") == 0) {
+        // 执行 ps axjf 命令
+        char* new_argv[] = {"ps", "axjf", NULL};
+        execvp("ps", new_argv);
+    } else if (strcmp(argv[1], "aux") == 0) {
+        // 执行 ps aux 命令
+        char* new_argv[] = {"ps", "aux", NULL};
+        execvp("ps", new_argv);
+    } else {
+        // 执行其他命令
+        execvp(argv[0], argv);
+    }
 }

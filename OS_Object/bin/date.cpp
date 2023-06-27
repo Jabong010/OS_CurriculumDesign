@@ -1,5 +1,6 @@
 /*
-* 简单实现date命令
+* date命令的自定义实现
+* @author：谢小鹏、梁亮、徐璟逸
 */
 #include<stdio.h>
 #include<stdlib.h>
@@ -9,8 +10,20 @@ int main(int argc, char* argv[])
 {
     time_t t;
     struct tm *p;
-	time(&t);
-	p = gmtime(&t);
-	printf("%04d年 %02d月 %02d日 星期%d %02d:%02d:%02d CST\n",p->tm_year+1900, p->tm_mon+1, p->tm_mday, p->tm_wday==0 ? p->tm_wday+7 : p->tm_wday, p->tm_hour+8, p->tm_min, p->tm_sec);
-	return 0;
+    char current_time[80];
+    
+    time(&t);
+    p = localtime(&t);
+    
+    // 设置时区
+    setenv("TZ", "CST-8", 1); //设置时区TZ，将时区设置为CST-8(东八区的时区)
+    tzset();                  //更新时区，根据环境变量 TZ 的值重新初始化时区信息，
+	                          //使程序在后续的时间操作中基于新的时区设置进行计算和显示
+    
+    // 格式化日期和时间后存进current_time
+    strftime(current_time,sizeof(current_time), "%Y年 %m月 %d日 星期%u %H:%M:%S %Z", p);
+    
+    printf("%s\n", current_time);
+    return 0;
 }
+

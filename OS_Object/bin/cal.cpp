@@ -1,117 +1,75 @@
 /*
-* 简单实现cal命令
+* cal命令的自定义实现
+* @author：谢小鹏、梁亮、徐璟逸
 */
-#include<stdio.h>
-#include<unistd.h>
-#include<sys/stat.h>
-#include<string.h>
-#include<stdlib.h>
-#include<time.h>
+#include <stdio.h>
+#include <time.h>
 
-//获取本月有几天
-int monthOfDay(int year, int month);
+void showCal(int year, int month, int day);
 
-//获取从1900/1/1到目标日期的天数 (1900/1/1 周一)
-int getDay(int year, int month);
-
-//打印表
-void showCal(int year, int month, int day, int days);
- 
-//main
-int main(int argc, char *argv[])
+int main()
 {
-	//参数数量错误
-	if(argc != 1)
-	{
-		fprintf(stdout, "参数错误\n");
-	}
-	//年月日
-	int year, month, day, days;
-	//时间结构体相关
 	time_t t;
-    	struct tm *p;
-	time(&t);
-	p = gmtime(&t);
- 	//获取时间
- 	year = p->tm_year + 1900;
- 	month = p->tm_mon+1;
- 	day = p->tm_mday;
-	//获取从1900/1/1到目标日期的天数
-	days = getDay(year, month);
-   	//打印表
-	showCal(year, month, day, days);
+	struct tm *current_time;
+
+	time(&t); // 获取时间戳
+	current_time = localtime(&t);
+
+	int year = current_time->tm_year + 1900; // tm_year是从1900年开始计算的，所以year要加上1900
+	int month = current_time->tm_mon + 1;	 // tm_mon是从0开始计算月数，所以要加1
+	int day = current_time->tm_mday;
+
+	showCal(year, month, day);
+
 	return 0;
 }
 
-//获取本月有几天
-int monthOfDay(int year, int month)
+void showCal(int year, int month, int day)
 {
-	int day[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
-	if(year % 400 == 0 || (year % 4 == 0 && year % 100 != 0))
-	{
-		day[1] = 29;//二月
-	}
- 	return day[month - 1];
-}
+	struct tm date = {0};
+	date.tm_year = year - 1900;  // 还原成时间戳的year时间
+	date.tm_mon = month - 1;     // 还原成tm结构体下从0开始计数的月份大小
+	date.tm_mday = 1;            // 设置本月开始天数，从第一天开始
 
-//获取从1900/1/1到目标日期的天数 (1900/1/1 周一)
-int getDay(int year, int month)
-{
-	int days = 0;
-	for(int i = 1900; i < year; ++i)//年
+	mktime(&date);               // 根据时间更新成员变量，如星期几等等
+
+	int start_day = date.tm_wday; 
+	int total_days = 0;
+
+	switch (month)
 	{
-		if(i % 400 == 0 || (i % 4 == 0 && i % 100 != 0))
-		{
-			days += 366;
-		}
+	case 2:
+		if ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0)
+			total_days = 29;
 		else
-		{
-			days += 365;
-		}
+			total_days = 28;
+		break;
+	case 4:
+	case 6:
+	case 9:
+	case 11:
+		total_days = 30;
+		break;
+	default:
+		total_days = 31;
+		break;
 	}
-	for(int i = 1; i < month; i++)//月
-	{
-		days = days + monthOfDay(year, i);
-	}
-	days += 1;//日
-	return days;//绿色
-}
-
-//打印表
-void showCal(int year, int month, int day, int days)
-{
-	int mdays;
-	//获取本月有几天
-	mdays=monthOfDay(year, month);
-	//打印头
-	printf("      %02d月 %d      \n", month, year);
+	printf("\n");
+	printf("     %02d月 %d\n", month, year);
 	printf("日 一 二 三 四 五 六\n");
-	//把1号置于正确的位置
-	for(int i = 0; i < days % 7; ++i)
+
+	for (int i = 0; i < start_day; i++)
+		printf("   ");
+
+	for (int i = 1; i <= total_days; i++)
 	{
-		printf("%2s "," ");
-	}
-	//循环输出日期
-	for(int i = 1; i <= mdays; ++i)
-	{
-		if(i == day)
-		{
-			printf("\033[1;40;32m%2d\033[0m ",i);//绿色
-		}
+		if (i == day)
+			printf("\033[1;40;32m%2d\033[0m ", i); // 今日时期高亮显示
 		else
-		{
-			printf("%2d ",i);
-		}
-		if(days % 7 == 6)
-		{
+			printf("%2d ", i);
+
+		if ((i + start_day) % 7 == 0)
 			printf("\n");
-		}
-	       days++;
-   	}
-   	printf("\n\n");
+	}
+	printf("\n\n");
 }
-
-
-
-
-

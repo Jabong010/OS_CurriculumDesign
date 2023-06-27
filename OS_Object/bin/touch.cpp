@@ -1,97 +1,102 @@
 /*
-* 简单实现touch命令
+* touch命令以及touch -acm的自定义实现
+* @author：谢小鹏、梁亮、徐璟逸
 */
-#include<stdio.h>
-#include<getopt.h>
-#include<sys/types.h>
-#include<time.h>
-#include<fcntl.h>
-#include<stdlib.h>
-#include<unistd.h>
-#include<stdbool.h>
-#include<sys/time.h>
-#include<sys/stat.h>
+#include <stdio.h>
+#include <getopt.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <stdbool.h>
+#include <utime.h>
+#include <time.h> // 添加time.h头文件
 
 #define CH_ATIME 1
 #define CH_MTIME 2
+//touch -a用于更新文件的访问时间，如果文件不存在则创建文件。
+//touch -c用于更新文件的时间戳，但不创建新文件。
+//touch -m用于更新文件的修改时间，如果文件不存在则创建文件
 
-//定义创建文件时的模式，此处对用户，组，其他设置的权限都是可读可写。
-#define MODE_RW_UGO (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH |S_IWOTH)
+// 定义创建文件时的默认权限
+#define DEFAULT_MODE (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
 
-//标志文件access time 和 modify time的改变情况
+// 标志文件access time和modify time的改变情况
 static int change_times;
 
-// 如果有(-c)选项，并且不存在命令行中输入的文件名，则不创建 
-static bool no_create;
+// 是否只更新时间而不创建文件 -c
+static bool update_only;
 
-//当设置新的access time 和 modify time的时候使用
-static struct timespec newtime[2];
+//utimbuf 是一个定义在 <utime.h> 头文件中的结构体，用于存储文件的访问时间和修改时间。
+static struct utimbuf new_times;    
 
-//mytouch命令核心的核心模块，用于创建或者更新文件的时间戳。
-static bool mytouch(const char *file)
-{
-	bool ok;
-	int fd = -1;
-	if (!no_create)
-	{
-		fd = open(file, O_CREAT | O_WRONLY, MODE_RW_UGO);
-	}    
-	//在主函数中，如果没有检测到（-a）（-m），则change_times == (CH_ATIME | CH_MTIME)，\
-	否则按照选项只用改变其中一个时间戳。
-	if (change_times !=(CH_ATIME | CH_MTIME))
-	{
-		//只设定其中一个时间值。
-		/*如果change_times == CH_MTIME，即（-m）,将对应的修改access time
-		的timespec结构的tv_nsec设置为UTIME_OMIT;参考utimensat函数的用法*/
-		if (change_times == CH_MTIME)
-		{
-			newtime[0].tv_nsec = UTIME_OMIT;
-		}
-		/*如果change_times == CH_MTIME，即（-a）,将对应的修改modify time
-		的timespec结构的tv_nsec设置为UTIME_OMIT;参考utimensat函数的用法*/
-		else
-		{
-			//AT_FDCWD表示当前工作目录。
-			newtime[1].tv_nsec = UTIME_OMIT;
-		}
-	}
-	ok = (utimensat(AT_FDCWD, file, newtime, 0) == 0);
-	return true;
+// touch命令核心模块，用于创建或更新文件的时间戳
+static bool mytouch(const char *file);
+
+int main(int argc, char **argv) {
+    int c;
+    bool success = true;
+    change_times = 0;
+    update_only = false;
+
+    // 解析命令行参数，目前只支持-a、-c、-m三个选项
+    while ((c = getopt(argc, argv, "acm")) != -1) {
+        switch (c) {
+            case 'a':
+                change_times |= CH_ATIME;
+                break;
+            case 'c':
+                update_only = true;
+                break;
+            case 'm':
+                change_times |= CH_MTIME;
+                break;
+            default:
+                printf("Invalid option: -%c\n", optopt);
+                return EXIT_FAILURE;
+        }
+    }
+
+    if (change_times == 0) {  //如果没有解析到任何选项，即 change_times 仍为 0
+	                          //则将 change_times 设置为 CH_ATIME | CH_MTIME，表示同时修改访问时间和修改时间。
+        change_times = CH_ATIME | CH_MTIME;
+    }
+
+    // 设置新的时间戳
+    time_t current_time = time(NULL); //获得当前时间
+    new_times.actime = (change_times & CH_ATIME) ? current_time : -1;  //如果change_time的访问时间位为1,则更新文件访问时间为当前时间
+    new_times.modtime = (change_times & CH_MTIME) ? current_time : -1; //如果change_time的修改时间位为1,则更新文件修改时间为当前时间
+                                                                       //如果是-1，在更新文件时间时就不会进行更改
+    // 检查是否提供了文件名
+    if (optind == argc) {
+        printf("Missing file operand\n");
+        return EXIT_FAILURE;
+    }
+
+    // 针对每个文件名调用mytouch函数
+    for (; optind < argc; ++optind) {
+        success &= mytouch(argv[optind]);
+    }
+
+    return success ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-int main(int argc, char **argv)
-{
-	int c;
-	bool ok = true;
-	change_times = 0;
-	no_create = false;
-	//从命令行中得到命令的选项，即以'-'开头的参数。目前只支持三种选型-a, -c, -m。
-	while ((c = getopt(argc, argv, "acm")) != -1)
-	{
-		switch(c)
-		{
-			case 'a': change_times |= CH_ATIME; break;
-			case 'c': no_create = true; break;
-			case 'm': change_times |= CH_MTIME; break;
-			default: printf("fault option!"); break;
-		}    
-	}
-	if (change_times == 0)
-	{
-		change_times = CH_ATIME | CH_MTIME;
-	}
-	newtime[0].tv_nsec = UTIME_NOW;
-	newtime[1].tv_nsec = UTIME_NOW;
-	//如果optind == argc，代表少输入文件名字
-	if (optind == argc)
-	{
-		printf("missing file operand\n");
-	}    
-	//针对多个文件名字调用mytouch函数
-	for (; optind < argc; ++optind)
-	{
-		ok &= mytouch(argv[optind]);
-	}
-	exit(ok ? EXIT_SUCCESS : EXIT_FAILURE);
-	return 0;
+// touch命令核心模块，用于创建或更新文件的时间戳
+static bool mytouch(const char *file) {
+    int fd = -1;
+    if (!update_only) {
+        fd = open(file, O_CREAT | O_WRONLY, DEFAULT_MODE);
+        if (fd == -1) {
+            perror("Error creating file");
+            return false;
+        }
+        close(fd);
+    }
+    //utime() 函数用于修改文件的访问时间和修改时间
+    if (utime(file, &new_times) == -1) {
+        perror("Error updating file timestamps");
+        return false;
+    }
+    return true;
 }

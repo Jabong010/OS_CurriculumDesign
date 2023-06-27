@@ -1,5 +1,6 @@
 /*
-* 简单实现ls命令
+* ls命令的自定义实现
+* @author：谢小鹏、梁亮、徐璟逸
 */
 #include <stdio.h>
 #include <dirent.h>	
@@ -11,8 +12,8 @@
 #include <pwd.h>	    // 用来得到用户名
 #include <grp.h>	    // 用来取得组名
  
-// argv, argc 
-// 结构体,用来存储要输出的每个属性值
+//argv, argc 
+//结构体,用来存储要输出的每个属性值
 struct attribute
 {
 	char mode[10];		 // 文件属性和权限
@@ -24,7 +25,175 @@ struct attribute
 	char filename[255];	 // 文件名
 	char extra[3];		 // 用来显示时候要加 "*"(可以执行的文件) 或者 "/" (目录) 的额外字符串
 };
+
+//struct
+struct attribute file_attribute[200]; // maximum 200
+
+//处理不带 -l 参数的 ls 命令
+void lsShort(char *dirname);
+//计算整数 n 有几位
+int f(long n);
+//得到终端的列数和行数./
+void getTerminatorSize(int *cols, int *lines);
+//由int型的mode,得到实际要显示的字符串
+void mode2str(int mode, char str[]);
+//根据用户的 id 值，得到用户名 user name
+void uid2str(uid_t uid, char *user_name); /* 将uid转化成username */
+//根据用户组的id值，得到用户组名groupname
+void gid2str(gid_t gid, char *group_name); /* 将uid转化成username */
+//时间的格式化字符串, 注意这里我把前面的星期和后面的年份都去掉了
+void time2str(time_t t, char *time_str);
+//要显示的某一个文件详细信息,并把信息放在结构体 attribute 中
+void ls_long_file(char *dirname, char *filename, struct attribute *file_attri);
+//ls详细信息
+void lsLong(char *dirname, int mode);
  
+
+ 
+int main(int argc, char **argv) 
+{
+	int i;
+	//ls
+	if (argc == 1) 
+	{					
+		lsShort("./");	
+		return 0;
+	}
+	//ls -l
+	if (argc == 2 && !strcmp(argv[1], "-l") ) 
+	{			
+		lsLong("./", 1);
+		return 0;
+	}
+	//ls -l | more   ls -l |more
+	if ( (argc == 4 && !strcmp(argv[1], "-l") && !strcmp(argv[2], "|") && !strcmp(argv[3], "more")) 
+		|| (argc == 3 && !strcmp(argv[1], "-l") && !strcmp(argv[2], "|more")) )
+	{
+		lsLong("./", 2);
+		return 0;
+	}
+	//ls -l directory name
+	if (argc > 2 && !strcmp(argv[1], "-l") ) 
+	{			
+		for(i = 2; i < argc; ++ i) 
+		{
+			printf("%s:\n", argv[i]);
+			lsLong(argv[i], 1);
+			if(i != argc - 1)
+				printf("\n");	
+		}
+		return 0;	
+	} 
+	// ls directory name or file
+    else 
+   {
+       for (i = 1; i < argc; ++i) 
+       {
+           struct stat path_stat;
+           if (stat(argv[i], &path_stat) == 0) 
+           {
+                if (S_ISDIR(path_stat.st_mode)) {
+                printf("%s:\n", argv[i]);
+                lsShort(argv[i]);
+                } 
+				else{
+                printf("%s\n", argv[i]);
+               }
+          } else {
+            printf("wrong input: %s\n", argv[i]);
+            }
+        
+            if(i!= argc-1)
+            printf("\n");
+       }
+     return 0;
+    }
+	return 0;
+}
+
+// 处理不带 -l 参数的 ls 命令
+void lsShort(char *dirname) 
+{
+ 
+	DIR *mydir = opendir(dirname);			/* directory */	
+ 
+	// 用来暂时存储要显示的目录下的所有文件名,可以看到最大可以支持200个文件,但是每个文件名最长为20
+	char filenames[200][20];
+	int file_num = 0;
+ 
+	if (mydir == NULL) 
+	{
+		// 直接显示该文件
+		printf("%s\n\n", dirname);
+		return;
+	} 
+	else 
+	{
+		// 循环检查下面有多少文件,并把文件名全部放到filenames数组里
+		struct dirent *mydirent;			/* file */
+		while ( (mydirent = readdir( mydir )) != NULL) 
+		{
+			char filename[20];
+			strcpy(filename, mydirent->d_name);	
+			if (filename[0] != '.' ) 
+			{
+				strcpy(filenames[file_num], mydirent->d_name);
+				file_num ++;
+			}	
+		}
+		closedir(mydir);
+	}
+ 
+	// 根据文件名称排序
+	int i, j;
+	char temp[20];
+	for(i = 0; i < file_num; ++ i) 
+	{
+		for(j = i+1; j < file_num; ++ j) 
+		{
+			if(strcmp(filenames[i], filenames[j]) > 0) 
+			{
+				strcpy(temp, filenames[i]);
+				strcpy(filenames[i], filenames[j]);
+				strcpy(filenames[j], temp);
+			}
+		}
+	}
+ 
+	// 确定所有文件里面最长的文件名的长度
+	int max_len = 0;
+	
+	for(i = 0; i < file_num; ++ i) 
+	{
+		int len = strlen(filenames[i]);
+		if(len > max_len) 
+		{
+			max_len = len;
+		}
+	}
+	// 得到当前终端的分辨率
+	int cols = 80;
+	int lines = 24;
+	getTerminatorSize(&cols, &lines);
+	
+	char format[20];
+	sprintf(format, "%%-%ds  ", max_len);
+ 
+	// 格式化输出,当长度大于终端的列数时,换行
+	int current_len = 0;
+	for(i = 0; i < file_num; ++ i) 
+	{
+		printf(format, filenames[i]);
+		current_len += max_len + 2;
+		if(current_len + max_len + 2 > cols) 
+		{
+			printf("\n");
+			current_len = 0;
+		}	
+	}
+	printf("\n");
+} 
+
 // 计算整数 n 有几位
 int f(long n) 
 {
@@ -37,7 +206,7 @@ int f(long n)
 	return ret;
 }
  
-// 得到终端的列数和行数./
+//得到终端的列数和行数./
 void getTerminatorSize(int *cols, int *lines) 
 {
  
@@ -52,10 +221,9 @@ void getTerminatorSize(int *cols, int *lines)
     *cols = ts.ws_col;  
     *lines = ts.ws_row;  
 #endif /* TIOCGSIZE */  
- 
 }
  
-// 由 int 型的 mode,得到实际要显示的字符串
+//由int型的mode,得到实际要显示的字符串
 void mode2str(int mode, char str[])
 {
     strcpy(str, "----------\0"); 
@@ -77,7 +245,7 @@ void mode2str(int mode, char str[])
     if(mode & S_IXOTH) str[9] = 'x';
 }
  
-// 根据用户的 id 值，得到用户名 user name
+//根据用户的id值，得到用户名username
 void uid2str(uid_t uid, char *user_name) /* 将uid转化成username */
 {
 	struct passwd *pw_ptr;
@@ -93,7 +261,7 @@ void uid2str(uid_t uid, char *user_name) /* 将uid转化成username */
 	}
 }
  
-// 根据用户组的 id 值，得到用户组名 group name
+//根据用户组的id值，得到用户组名groupname
 void gid2str(gid_t gid, char *group_name) /* 将uid转化成username */
 {
 	struct group *grp_ptr;
@@ -109,14 +277,14 @@ void gid2str(gid_t gid, char *group_name) /* 将uid转化成username */
 	}
 }
  
-// 时间的格式化字符串, 注意这里我把前面的星期和后面的年份都去掉了
+//时间的格式化字符串, 注意这里我把前面的星期和后面的年份都去掉了
 void time2str(time_t t, char *time_str)
 {
-	strcpy( time_str, ctime(&t) + 4);
+	strcpy(time_str, ctime(&t) + 4);
 	time_str[12] = '\0';
 }
  
-// 要显示的某一个文件详细信息,并把信息放在结构体 attribute 中
+//要显示的某一个文件详细信息,并把信息放在结构体 attribute 中
 void ls_long_file(char *dirname, char *filename, struct attribute *file_attri) 
 {
 	// 根据文件夹名和文件名得到全名
@@ -171,9 +339,7 @@ void ls_long_file(char *dirname, char *filename, struct attribute *file_attri)
 	} 	
 }
 
-// struct
-struct attribute file_attribute[200]; // maximum 200
- 
+//ls详细信息
 void lsLong(char *dirname, int mode)
 {
 	
@@ -337,140 +503,4 @@ void lsLong(char *dirname, int mode)
 			getchar();
 		} 
  	}
-}
- 
-// 处理不带 -l 参数的 ls 命令
-void lsShort(char *dirname) 
-{
- 
-	DIR *mydir = opendir(dirname);			/* directory */	
- 
-	// 用来暂时存储要显示的目录下的所有文件名,可以看到最大可以支持200个文件,但是每个文件名最长为20
-	char filenames[200][20];
-	int file_num = 0;
- 
-	if (mydir == NULL) 
-	{
-		// 直接显示该文件
-		printf("%s\n\n", dirname);
-		return ;
-	} 
-	else 
-	{
-		// 循环检查下面有多少文件,并把文件名全部放到filenames数组里
-		struct dirent *mydirent;			/* file */
-		while ( (mydirent = readdir( mydir )) != NULL) 
-		{
-			char fname[20];
-			strcpy(fname, mydirent->d_name);	
-			if (fname[0] != '.' ) 
-			{
-				strcpy(filenames[file_num], mydirent->d_name);
-				file_num ++;
-			}	
-		}
-		closedir( mydir );
-	}
- 
-	// 文件名排序
-	int i, j;
-	char temp[20];
-	for(i = 0; i < file_num; ++ i) 
-	{
-		for(j = i+1; j < file_num; ++ j) 
-		{
-			if(strcmp(filenames[i], filenames[j]) > 0) 
-			{
-				strcpy(temp, filenames[i]);
-				strcpy(filenames[i], filenames[j]);
-				strcpy(filenames[j], temp);
-			}
-		}
-	}
- 
-	// 确定所有文件里面最长的文件名的长度
-	int max_len = 0;
-	
-	for(i = 0; i < file_num; ++ i) 
-	{
-		int len = strlen(filenames[i]);
-		if(len > max_len) 
-		{
-			max_len = len;
-		}
-	}
- 
-	// 得到当前终端的分辨率
-	int cols = 80;
-	int lines = 24;
-	getTerminatorSize(&cols, &lines);
-	
-	char format[20];
-	sprintf(format, "%%-%ds  ", max_len);
- 
-	// 格式化输出,当长度大于终端的列数时,换行
-	int current_len = 0;
-	for(i = 0; i < file_num; ++ i) 
-	{
-		printf(format, filenames[i]);
-		current_len += max_len + 2;
-		if(current_len + max_len + 2 > cols) 
-		{
-			printf("\n");
-			current_len = 0;
-		}	
-	}
-	printf("\n");
-} 
- 
-int main(int argc, char **argv) 
-{
-	printf("这是我的ls命令\n");
-	int i;
-	//ls
-	if (argc == 1) 
-	{					
-		lsShort("./");	
-				printf("这是我的ls命令\n");	
-		return 0;
-	}
-	//ls -l
-	if (argc == 2 && !strcmp(argv[1], "-l") ) 
-	{			
-		lsLong("./", 1);
-		return 0;
-	}
-	//ls -l | more   ls -l |more
-	if ( (argc == 4 && !strcmp(argv[1], "-l") && !strcmp(argv[2], "|") && !strcmp(argv[3], "more")) 
-		|| (argc == 3 && !strcmp(argv[1], "-l") && !strcmp(argv[2], "|more")) )
-	{
-		lsLong("./", 2);
-		return 0;
-	}
-	//ls -l directory name
-	if (argc > 2 && !strcmp(argv[1], "-l") ) 
-	{			
-		for(i = 2; i < argc; ++ i) 
-		{
-			printf("%s:\n", argv[i]);
-			lsLong(argv[i], 1);
-			if(i != argc - 1)
-				printf("\n");	
-		}
-		return 0;	
-	} 
-	//ls directory name
-	else 
-	{
-		for (i = 1; i < argc; ++ i) 
-		{
-			printf("%s:\n", argv[i]);
-			lsShort(argv[i]);
-			if(i != argc - 1)
-				printf("\n");	
-		}
-		return 0;
-	}
-	
-	return 0;
 }
