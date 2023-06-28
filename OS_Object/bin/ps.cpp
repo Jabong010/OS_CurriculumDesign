@@ -56,8 +56,8 @@ int main(int argc, char* argv[]) {
                 mps* next = current->next;
                 free(current);
                 current = next;
-            }
-        }
+               }
+              }
     } else {
         execute_ps(argc, argv);
     }
