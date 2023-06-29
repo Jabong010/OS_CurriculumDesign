@@ -13,9 +13,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#define MAX_LEN 20
 
-// 信息结构体
+#define MAX_LEN 20
+// 进程信息结构体
 typedef struct ps_info {
     char pname[MAX_LEN];
     char user[MAX_LEN];
@@ -24,31 +24,24 @@ typedef struct ps_info {
     char state;
     struct ps_info* next;
 } mps;
-
 // 获取信息
 mps* trav_dir(char dir[]);
-
 // 读取信息
 int read_info(char d_name[], struct ps_info* p1);
-
 // 根据进程uid获取进程的所有者user
 void uid_to_name(uid_t uid, struct ps_info* p1);
-
 // 判断name是否为纯数字
 int is_num(const char* name);
-
 // 显示
 void print_ps(struct ps_info* head);
-
 // 执行命令
 void execute_ps(int argc, char* argv[]);
-
 int main(int argc, char* argv[]) {
     if (argc == 1) {
         mps* head;
         head = trav_dir("/proc/");
         if (head == NULL) {
-            printf("traverse dir error\n");
+            fprintf(stderr,"traverse dir error\n");
         } else {
             print_ps(head);
             mps* current = head;
@@ -63,17 +56,15 @@ int main(int argc, char* argv[]) {
     }
     return 0;
 }
-
 mps* trav_dir(char dir[]) {
     DIR* dir_ptr;
     mps* head = NULL;
     mps* tail = NULL;
     struct dirent* direntp;
     struct stat infobuf;
-
-    if ((dir_ptr = opendir(dir)) == NULL) {
+    if ((dir_ptr = opendir(dir)) == NULL)
         fprintf(stderr, "dir error %s\n", dir);
-    } else {
+    else{
         while ((direntp = readdir(dir_ptr)) != NULL) {
             if (is_num(direntp->d_name) == 0) {
                 mps* p1 = (struct ps_info*)malloc(sizeof(struct ps_info));
@@ -101,19 +92,15 @@ mps* trav_dir(char dir[]) {
     }
     return head;
 }
-
 int read_info(char d_name[], struct ps_info* p1) {
     char dir[20];
     struct stat infobuf;
-
     sprintf(dir, "%s/%s", "/proc/", d_name);
     chdir("/proc");
-    if (stat(d_name, &infobuf) == -1) {
+    if (stat(d_name, &infobuf) == -1)
         fprintf(stderr, "stat error %s\n", d_name);
-    } else {
+    else 
         uid_to_name(infobuf.st_uid, p1);
-    }
-
     chdir(dir);
     FILE* fd = fopen("stat", "r");
     if (fd == NULL) {
@@ -128,11 +115,9 @@ int read_info(char d_name[], struct ps_info* p1) {
         return -1;
     }
 }
-
 void uid_to_name(uid_t uid, struct ps_info* p1) {
     struct passwd* pw_ptr;
     static char numstr[10];
-
     if ((pw_ptr = getpwuid(uid)) == NULL) {
         sprintf(numstr, "%d", uid);
         strcpy(p1->user, numstr);
@@ -140,7 +125,6 @@ void uid_to_name(uid_t uid, struct ps_info* p1) {
         strcpy(p1->user, pw_ptr->pw_name);
     }
 }
-
 int is_num(const char* name) {
     int i, len;
     len = strlen(name);
@@ -154,14 +138,11 @@ int is_num(const char* name) {
     }
     return 0;
 }
-
 void print_ps(struct ps_info* head) {
     printf("USER\t\tPID\tPPID\tSTATE\tPNAME\n");
-    for (struct ps_info* list = head; list != NULL; list = list->next) {
+    for (struct ps_info* list = head; list != NULL; list = list->next)
         printf("%s\t\t%d\t%d\t%c\t%s\n", list->user, list->pid, list->ppid, list->state, list->pname);
-    }
 }
-
 void execute_ps(int argc, char* argv[]) {
     if (strcmp(argv[1], "axjf") == 0) {
         // 执行 ps axjf 命令

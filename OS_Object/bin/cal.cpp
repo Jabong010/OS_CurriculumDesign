@@ -4,7 +4,7 @@
 */
 #include <stdio.h>
 #include <time.h>
-
+ 
 void showCal(int year, int month, int day);
 
 int main()
@@ -12,8 +12,8 @@ int main()
 	time_t t;
 	struct tm *current_time;
 
-	time(&t); // 获取时间戳
-	current_time = localtime(&t);
+	time(&t); // 获取时间戳 1970.1.1至今秒数
+	current_time = localtime(&t); // gmtime()也使用UTC，0时区
 
 	int year = current_time->tm_year + 1900; // tm_year是从1900年开始计算的，所以year要加上1900
 	int month = current_time->tm_mon + 1;	 // tm_mon是从0开始计算月数，所以要加1
@@ -33,7 +33,7 @@ void showCal(int year, int month, int day)
 
 	mktime(&date);               // 根据时间更新成员变量，如星期几等等
 
-	int start_day = date.tm_wday; 
+	int start_day = date.tm_wday; // 一周中的第几天 周日为1
 	int total_days = 0;
 
 	switch (month)

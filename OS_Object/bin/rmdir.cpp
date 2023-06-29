@@ -55,7 +55,10 @@ void delete_directory(const char *path)
     {
         // 跳过当前目录和上级目录
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-        {
+        {/*
+* top命令的自定义实现
+* @author：谢小鹏、梁亮、徐璟逸
+*/
             continue;
         }
 

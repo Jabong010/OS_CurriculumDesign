@@ -6,7 +6,7 @@
 #include<stdlib.h>
 #include<time.h>
 
-int main(int argc, char* argv[])
+int main()
 {
     time_t t;
     struct tm *p;
@@ -16,11 +16,11 @@ int main(int argc, char* argv[])
     p = localtime(&t);
     
     // 设置时区
-    setenv("TZ", "CST-8", 1); //设置时区TZ，将时区设置为CST-8(东八区的时区)
+    setenv("TZ", "CST-8", 1); //设置时区TZ，将时区设置为CST-8(东八区的时区) China Standard Time
     tzset();                  //更新时区，根据环境变量 TZ 的值重新初始化时区信息，
 	                          //使程序在后续的时间操作中基于新的时区设置进行计算和显示
-    
-    // 格式化日期和时间后存进current_time
+
+    // 格式化日期和时间后存进current_time sizeof存储字节数保证不会越界
     strftime(current_time,sizeof(current_time), "%Y年 %m月 %d日 星期%u %H:%M:%S %Z", p);
     
     printf("%s\n", current_time);

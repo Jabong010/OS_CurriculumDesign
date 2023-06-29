@@ -14,13 +14,13 @@
 
 // 进程信息结构体
 typedef struct {
-    char pid[256];
+    char pid[256]; //process id
     char name[256];
     char state[256];
-    char ppid[256];
+    char ppid[256]; //parent
     char priority[256];
     char threads[256];
-    char vm_size[256];
+    char vm_size[256]; //virtul memory
 } ProcessInfo;
 
 
@@ -49,12 +49,14 @@ int main()
         }
 
         int processCount = 0;
-        struct dirent* entry;
-        while ((entry = readdir(procDir)) != NULL && processCount < MAX_PROCESSES) {
+        struct dirent* entry;  //包含了目录中的相关文件信息:index; offset; name_size; type; name
+        while ((entry = readdir(procDir)) != NULL && processCount < MAX_PROCESSES) {  //读取procDir目录中的信息并赋值给entry，判断进程数
             // 判断是否为数字命名的目录
             if (entry->d_type == DT_DIR && isdigit(entry->d_name[0])) {
-                char procPath[256];
-                snprintf(procPath, sizeof(procPath), "/proc/%s", entry->d_name);
+                
+                //存储进程路径
+                char procPath[256]; 
+                snprintf(procPath, sizeof(procPath), "/proc/%s", entry->d_name); 
 
                 // 获取进程信息
                 ProcessInfo processInfo;
@@ -84,8 +86,8 @@ int main()
         }
 
         // 刷新并等待一秒
-        fflush(stdout);
-        sleep(1);
+        fflush(stdout); //刷新输出缓冲区
+        sleep(5);
 
         // 检查输入是否为 'q'
         fd_set inputSet;
@@ -126,7 +128,8 @@ int compare(const void* a, const void* b)
 // 清空终端
 void clearTerminal()
 {
-    printf("\033[2J\033[H");
+    
+    printf("\033[2J\033[H"); //将光标移动到屏幕左上方
     fflush(stdout);
 }
 
@@ -149,9 +152,9 @@ void getProcessInfo(const char* procPath, ProcessInfo* processInfo)
     FILE* statusFile = fopen(statusPath, "r");
     if (statusFile != NULL) {
         char line[256];
-        while (fgets(line, sizeof(line), statusFile) != NULL) {
-            if (strncmp(line, "VmSize:", 7) == 0) {
-                sscanf(line, "%*s %s", processInfo->vm_size);
+        while (fgets(line, sizeof(line), statusFile) != NULL) { //逐行读取
+            if (strncmp(line, "VmSize:", 7) == 0) { //line 字符串的前 7 个字符与 "VmSize:" 是否相等
+                sscanf(line, "%*s %s", processInfo->vm_size); //%*s表示忽略匹配的字符串，%s 表示匹配并读取字符串
                 break;
             }
         }

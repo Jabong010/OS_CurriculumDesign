@@ -3,32 +3,31 @@
 #include <cstdlib>
 #include <cstring>
 #include <list>
-#include <syspes.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-
-// 读取命令行输入
+//读取命令行输入
 bool readCMD(char* buf, int buf_len);
 // 解析命令行参数
 int cutCMD(char* buf, char** argv);
-// 判断命令类型
-int judgeCMD(char** argv);
-// 执行命令
-void forkCMD(char** argv);
-// 将历史命令记录到cmd_list中
+//判断命令类型
+int judgeCMD(int argc,char** argv);
+//执行命令
+void forkCMD(char** argv, bool background);
+//将历史命令记录到cmd_list中
 void recordCMD(const char* cmd, std::list<const char*>& cmd_list, int max_size);
-
+//系统调用
 void runCMD(const char* cmd);
-// 获取历史命令的数量
+//获取历史命令的数量
 int getHistorySize(const std::list<const char*>& cmd_list);
-
-
+//退出系统
+void exit_OurShell();
 int main()
 {
-    const int max_size = 10;
-    char buf[1024];
-    std::list<const char*> cmd_list;
-
+    const int max_size = 10; //最多记录十条历史命令
+    char buf[1024]; //暂存输入的命令
+    //存放历史命令的列表
+    std::list<const char*> cmd_list; 
     while (true)
     {
         if (!readCMD(buf, sizeof(buf)))
@@ -38,11 +37,9 @@ int main()
 
         char* MyArgv[32];
         int argc = cutCMD(buf, MyArgv);
-        int cmd_type = judgeCMD(MyArgv);
-
+        int cmd_type = judgeCMD(argc,MyArgv);
         if (cmd_type == 1) // exit
-            break;
-
+            exit_OurShell();
         if (cmd_type == 2) // history
         {
             int history_size = getHistorySize(cmd_list);
@@ -54,29 +51,26 @@ int main()
             printf("Total commands: %d\n", history_size);
             continue;
         }
-
-
         if (cmd_type == 3) // !!
         {
             if (cmd_list.empty())
             {
-              printf("No commands in history.\n");
-              continue;
+                printf("No commands in history.\n");
+                continue;
             }
             const char* last_cmd = cmd_list.back();
             if (strcmp(last_cmd, "!!") == 0)
             {
-              if (cmd_list.size() < 2)
-              {
-                printf("No previous command in history.\n");
-                continue;
-              }
-            last_cmd = *(++cmd_list.rbegin());
+                if (cmd_list.size() < 2)
+                {
+                    printf("No previous command in history.\n");
+                    continue;
+                }
+                last_cmd = *(++cmd_list.rbegin());
             }
             runCMD(last_cmd);
             continue;
         }
-
         if (cmd_type == 4) // !n
         {
             if (cmd_list.empty())
@@ -95,33 +89,28 @@ int main()
             runCMD(*it);
             continue;
         }
-
-        forkCMD(MyArgv);
+        bool background = (cmd_type == 5); // 后台执行
+        forkCMD(MyArgv, background);
     }
 
     return 0;
 }
-
-// 读取命令行输入
+//读取命令行输入
 bool readCMD(char* buf, int buf_len)
 {
-    printf("lb's shell>");
+    printf("Our_Shell>");
     fflush(stdout);
     memset(buf, 0, buf_len);
-
     if (fgets(buf, buf_len, stdin) == nullptr)
     {
         perror("fgets error");
         exit(1);
     }
-
-    // 去除换行符
+    //去除换行符
     buf[strcspn(buf, "\n")] = '\0';
-
     return strlen(buf) > 0;
 }
-
-// 解析命令行参数
+//解析命令行参数
 int cutCMD(char* buf, char** argv)
 {
     int argc = 0;
@@ -133,11 +122,16 @@ int cutCMD(char* buf, char** argv)
         token = strtok(nullptr, delimiter);
     }
     argv[argc] = nullptr;
+    //检查最后一个参数是否为 "&"，如果是，则将其设置为 nullptr
+    if (argc > 0 && strcmp(argv[argc-1], "&") == 0)
+    {
+        argv[argc-1] = nullptr;
+        argc--;
+    }
     return argc;
 }
-
-// 判断命令类型
-int judgeCMD(char** argv)
+//判断命令类型
+int judgeCMD(int argc,char** argv)
 {
     if (argv[0] == nullptr)
         return -1;
@@ -149,11 +143,12 @@ int judgeCMD(char** argv)
         return 3;
     if (argv[0][0] == '!')
         return 4;
+    if (argv[argc-1] != nullptr && strcmp(argv[argc-1], "&") == 0)
+        return 5;
     return 0;
 }
-
-// 执行命令
-void forkCMD(char** argv)
+//执行命令
+void forkCMD(char** argv, bool background)
 {
     pid_t pid = fork();
     if (pid < 0)
@@ -166,7 +161,7 @@ void forkCMD(char** argv)
         char filename[1024];
         sprintf(filename, "%s%s", "./bin/", argv[0]);
 
-        // 子进程
+        //子进程
         if (execvp(filename, argv) < 0)
         {
             perror("execvp error");
@@ -175,28 +170,25 @@ void forkCMD(char** argv)
     }
     else
     {
-        // 父进程
-        int status;
-        waitpid(pid, &status, 0);
+        //父进程
+        if (!background) {
+            int status;
+            waitpid(pid, &status, 0);
+        }
     }
 }
-
-
-
-// 将历史命令记录到cmd_list中
+//将历史命令记录到cmd_list中
 void recordCMD(const char* cmd, std::list<const char*>& cmd_list, int max_size)
 {
-    char* cmd_copy = strdup(cmd);  // 复制命令字符串
+    char* cmd_copy = strdup(cmd);  //复制命令字符串
     cmd_list.push_back(cmd_copy);
     if (cmd_list.size() > static_cast<size_t>(max_size))
     {
         const char* oldest_cmd = cmd_list.front();
         cmd_list.pop_front();
-        free(const_cast<char*>(oldest_cmd));  // 释放最旧的历史命令副本
+        free(const_cast<char*>(oldest_cmd));  //释放最旧的历史命令副本
     }
 }
-
-
 void runCMD(const char* cmd)
 {
     if (system(cmd) < 0)
@@ -205,10 +197,14 @@ void runCMD(const char* cmd)
         exit(1);
     }
 }
-
-
-// 获取历史命令的数量
+//获取历史命令的数量
 int getHistorySize(const std::list<const char*>& cmd_list)
 {
     return static_cast<int>(cmd_list.size());
+}
+//退出系统
+void exit_OurShell()
+{
+    printf("GoodBye~Master~~~\n");
+    exit(0);
 }

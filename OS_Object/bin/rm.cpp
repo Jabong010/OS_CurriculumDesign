@@ -12,19 +12,15 @@
 
 // 删除指定文件
 int delete_file(char *fileName);
-
 // 删除指定目录
 int delete_directory(char *dirName);
 
 int main(int argc, char *argv[])
 {
-    // 没有参数
+    //1个参数，代表只输入了rm命令
     if (argc == 1)
-    {
         fprintf(stdout, "参数数量错误，请检查输入\n");
-    }
-    // 至少一个参数
-    else
+    else   // 多个参数 
     {
         int i = 1;
         // 检查是否有-r参数
@@ -36,29 +32,18 @@ int main(int argc, char *argv[])
                 fprintf(stdout, "参数数量错误，请检查输入\n");
                 return 0;
             }
-
             i = 2; // 从第三个参数开始处理
             for (; i < argc; ++i)
-            {
                 if (delete_directory(argv[i]) == -1)
-                {
-                    fprintf(stdout, "删除目录%s失败\n", argv[i]);
-                }
-            }
+                    fprintf(stdout, "删除目录%s失败\n", argv[i]);  
         }
         else
-        {
-            for (; i < argc; ++i)
-            {
+            for (; i < argc; ++i)         
                 if (delete_file(argv[i]) == -1)
-                {
-                    fprintf(stdout, "删除文件%s失败\n", argv[i]);
-                }
-            }
-        }
+                    fprintf(stdout, "删除文件%s失败\n", argv[i]);  
+        
     }
 }
-
 // 删除指定文件
 int delete_file(char *fileName)
 {
@@ -67,17 +52,13 @@ int delete_file(char *fileName)
     struct stat st;
     // 找不到文件
     if (lstat(file_path, &st) == -1)
-    {
         return -1;
-    }
     // 是否为常规文件
     if (S_ISREG(st.st_mode))
     {
         // unlink失败
         if (unlink(file_path) == -1)
-        {
             return -1;
-        }
     }
     // 是否为文件夹
     else if (S_ISDIR(st.st_mode))
@@ -87,7 +68,6 @@ int delete_file(char *fileName)
     }
     return 0;
 }
-
 // 删除指定目录
 int delete_directory(char *dirName)
 {
@@ -104,27 +84,17 @@ int delete_directory(char *dirName)
     while ((entry = readdir(dir)) != NULL)
     {
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-        {
             continue;
-        }
 
         snprintf(file_path, sizeof(file_path), "%s/%s", dirName, entry->d_name);
 
         if (delete_file(file_path) == -1)
-        {
             if (delete_directory(file_path) == -1)
-            {
                 fprintf(stdout, "删除目录%s失败\n", file_path);
-            }
-        }
     }
-
     closedir(dir);
-
     if (rmdir(dirName) == -1)
-    {
         return -1;
-    }
 
     return 0;
 }
